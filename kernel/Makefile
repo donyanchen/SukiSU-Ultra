@@ -37,3 +37,7 @@ check-format:
 	$(FORMAT_FILES) | xargs -0 clang-format --dry-run --Werror
 
 # Keep a new line here!! Because someone may append config
+
+# force KPM support on for this build
+CONFIG_KPM := y
+export CONFIG_KPM
