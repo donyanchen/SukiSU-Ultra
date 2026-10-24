@@ -82,6 +82,9 @@ ccflags-y += -DCONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER=1
 endif
 endif
 
+ccflags-y += -Wno-unused-result
+ccflags-y += -Wno-unused-but-set-variable
+
 kernelsu-objs += extension/kpm/kpm.o
 kernelsu-objs += extension/kpm/compact.o
 kernelsu-objs += extension/kpm/super_access.o
