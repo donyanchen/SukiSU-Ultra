@@ -43,6 +43,11 @@
  *
  * The userspace ioctl entry point (ksu_extension_kpm_io) is unchanged.
  */
+/* forced for LKM build: KPM objects are linked in */
+#ifndef CONFIG_KPM
+#define CONFIG_KPM 1
+#endif
+
 #include <linux/errno.h>
 #include <linux/kernel.h>
 #include <linux/uaccess.h>
