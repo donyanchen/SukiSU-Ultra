@@ -754,6 +754,8 @@ enum Susfs {
         /// uid scheme
         uid_scheme: u32,
     },
+    /// Replace the priority UID filter with a comma-separated package list
+    SetPriorityUidFilter { packages: String },
     /// Add SUS map
     AddSusMap {
         /// library path
@@ -788,30 +790,30 @@ enum Susfs {
     AddSusKstatStatically {
         /// path
         path: String,
-        /// ino
-        ino: u64,
-        /// dev
-        dev: u64,
-        /// nlink
-        nlink: u32,
-        /// size
-        size: u64,
-        /// atime sec
-        atime_sec: i64,
-        /// atime nsec
-        atime_nsec: u64,
-        /// mtime sec
-        mtime_sec: i64,
-        /// mtime nsec
-        mtime_nsec: u64,
-        /// ctime sec
-        ctime_sec: i64,
-        /// ctime nsec
-        ctime_nsec: u64,
-        /// blocks
-        blocks: u64,
-        /// blksize
-        blksize: i64,
+        /// ino (`default` keeps the current value)
+        ino: String,
+        /// dev (`default` keeps the current value)
+        dev: String,
+        /// nlink (`default` keeps the current value)
+        nlink: String,
+        /// size (`default` keeps the current value)
+        size: String,
+        /// atime sec (`default` keeps the current value)
+        atime_sec: String,
+        /// atime nsec (`default` keeps the current value)
+        atime_nsec: String,
+        /// mtime sec (`default` keeps the current value)
+        mtime_sec: String,
+        /// mtime nsec (`default` keeps the current value)
+        mtime_nsec: String,
+        /// ctime sec (`default` keeps the current value)
+        ctime_sec: String,
+        /// ctime nsec (`default` keeps the current value)
+        ctime_nsec: String,
+        /// blocks (`default` keeps the current value)
+        blocks: String,
+        /// blksize (`default` keeps the current value)
+        blksize: String,
     },
     /// Manage the SuSFS Magisk auto-start module
     Module {
@@ -883,7 +885,10 @@ pub enum SusfsConfigCmd {
     /// Reset all config keys to defaults
     Reset,
     /// List all config key=value pairs (one per line)
-    List,
+    List {
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 pub fn run() -> Result<()> {
@@ -1389,6 +1394,9 @@ pub fn run() -> Result<()> {
                     redirected,
                     uid_scheme,
                 } => susfs::add_open_redirect(&target, &redirected, uid_scheme),
+                Susfs::SetPriorityUidFilter { packages } => {
+                    susfs::set_priority_uid_filter(&packages)
+                }
                 Susfs::AddSusMap { path } => susfs::add_sus_map(&path),
                 Susfs::AddSusPath { path } => susfs::add_sus_path(&path),
                 Susfs::AddSusPathLoop { path } => susfs::add_sus_path_loop(&path),
@@ -1412,8 +1420,19 @@ pub fn run() -> Result<()> {
                     blocks,
                     blksize,
                 } => susfs::add_sus_kstat_statically(
-                    &path, ino, dev, nlink, size, atime_sec, atime_nsec, mtime_sec, mtime_nsec,
-                    ctime_sec, ctime_nsec, blocks, blksize,
+                    &path,
+                    &ino,
+                    &dev,
+                    &nlink,
+                    &size,
+                    &atime_sec,
+                    &atime_nsec,
+                    &mtime_sec,
+                    &mtime_nsec,
+                    &ctime_sec,
+                    &ctime_nsec,
+                    &blocks,
+                    &blksize,
                 ),
                 Susfs::Module { command } => {
                     use crate::susfs_module;
@@ -1458,8 +1477,13 @@ pub fn run() -> Result<()> {
                             susfs_config::reset_to_defaults()?;
                             println!("ok");
                         }
-                        SusfsConfigCmd::List => {
-                            println!("{}", susfs_config::export_json()?);
+                        SusfsConfigCmd::List { json } => {
+                            let output = if json {
+                                serde_json::to_string(&susfs_config::store::load_config()?)?
+                            } else {
+                                susfs_config::export_json()?
+                            };
+                            println!("{output}");
                         }
                     }
                     Ok(())
