@@ -387,7 +387,8 @@ static int ksu_selinux_hide_enable()
     int ret;
     pr_info("selinux_hide: init selinux hide\n");
     if (!backup_sepolicy) {
-        pr_err("no backup sepolicy available, please save feature and reboot to retry!\n");
+        pr_err("selinux_hide: no clean policy snapshot captured at boot, "
+               "cannot enable without rebooting\n");
         return -EAGAIN;
     }
     selinux_write_op = find_kernel_symbol_exact("write_op");
@@ -486,13 +487,19 @@ static int selinux_hide_feature_set(u64 value)
     int ret = 0;
     pr_info("selinux_hide: set to %d\n", enable);
     mutex_lock(&selinux_hide_mutex);
-    ksu_selinux_hide_enabled = enable;
     if (enable) {
         if (!ksu_selinux_hide_running) {
             ret = ksu_selinux_hide_enable();
-            if (!ret) {
-                ksu_selinux_hide_running = true;
+            if (ret) {
+                /*
+                 * Do not record intent for a hook set we failed to install:
+                 * reporting the feature as enabled while the hooks are absent
+                 * makes the state look healthy from userspace.
+                 */
+                mutex_unlock(&selinux_hide_mutex);
+                return ret;
             }
+            ksu_selinux_hide_running = true;
         }
     } else {
         if (ksu_selinux_hide_running) {
@@ -500,6 +507,7 @@ static int selinux_hide_feature_set(u64 value)
             ksu_selinux_hide_running = false;
         }
     }
+    ksu_selinux_hide_enabled = enable;
     mutex_unlock(&selinux_hide_mutex);
     return ret;
 }
@@ -584,8 +592,19 @@ void __exit ksu_selinux_hide_exit()
 void ksu_selinux_hide_drop_backup_if_unused()
 {
     mutex_lock(&selinux_hide_mutex);
-    if (!ksu_selinux_hide_running && backup_sepolicy) {
-        pr_info("selinux_hide is not enabled - drop backup_sepolicy\n");
+    /*
+     * Gate on the configured intent (ksu_selinux_hide_enabled), not on
+     * whether the hooks are currently installed (ksu_selinux_hide_running).
+     *
+     * At boot_completed the hooks are never installed yet - they are only
+     * applied when userspace flips the feature on - so the running flag is
+     * always false here. Testing it dropped the backup of a feature the user
+     * had explicitly enabled, and since the clean policy snapshot can only
+     * be captured during the boot policy load, toggling the feature off and
+     * back on afterwards failed with -EAGAIN until the next reboot.
+     */
+    if (!ksu_selinux_hide_enabled && backup_sepolicy) {
+        pr_info("selinux_hide: not configured, drop backup_sepolicy\n");
         sidtab_destroy(backup_sepolicy->sidtab);
         kfree(backup_sepolicy->sidtab);
         ksu_destroy_sepolicy(backup_sepolicy);
