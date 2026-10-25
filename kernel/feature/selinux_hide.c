@@ -336,21 +336,21 @@ static void initialize_fake_status()
 
     struct selinux_kernel_status *new_status = page_address(new_page);
     memcpy(new_status, status, sizeof(*status));
-    if (ksu_late_loaded) {
-        // In late_load mode the loader may have reloaded sepolicy before us,
-        // so the captured page is not stock. Serve what a stock boot ends
-        // with instead: creation sentinel below 6.10, one load plus one
-        // setenforce above.
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
-        new_status->sequence = 4;
-        new_status->policyload = 1;
-#else
-        new_status->sequence = 0;
-        new_status->policyload = 0;
-#endif
-        if (!new_status->enforcing) {
-            new_status->enforcing = 1;
-        }
+    /*
+     * sequence / policyload must keep the real captured values.
+     *
+     * They are NOT synthetic: sequence is a plain running counter over every
+     * policy load since boot, and policyload was dropped in 6.10 (always 0).
+     * HyperOS reloads sepolicy several times during boot, so the real
+     * sequence is device- and boot-dependent (observed: 12). Hardcoding any
+     * constant here - 4, 1 or 0 - produces a value that no stock kernel can
+     * ever report, which is exactly the fingerprint the detector matches on.
+     *
+     * Since memcpy already copied the real page, only the enforcing flag
+     * needs fixing up for the late-load case.
+     */
+    if (ksu_late_loaded && !new_status->enforcing) {
+        new_status->enforcing = 1;
     }
 
     fake_status = new_page;
