@@ -39,7 +39,10 @@ perform_cleanup() {
 # Sets up or update KernelSU environment
 setup_kernelsu() {
     echo "[+] Setting up KernelSU..."
-    test -d "$GKI_ROOT/KernelSU" || git clone https://github.com/SukiSU-Ultra/SukiSU-Ultra KernelSU && echo "[+] Repository cloned."
+    # Clone from the fork so the pudding branch (and the fixes it carries) is
+    # actually reachable: upstream does not have that branch and `git checkout`
+    # below would silently fall back to the default tag.
+    test -d "$GKI_ROOT/KernelSU" || git clone https://github.com/donyanchen/SukiSU-Ultra KernelSU && echo "[+] Repository cloned."
     cd "$GKI_ROOT/KernelSU"
     git stash && echo "[-] Stashed current changes."
     if [ "$(git status | grep -Po 'v\d+(\.\d+)*' | head -n1)" ]; then
@@ -49,7 +52,9 @@ setup_kernelsu() {
     if [ -z "${1-}" ]; then
         git checkout "$(git describe --abbrev=0 --tags)" && echo "[-] Checked out latest tag."
     else
-        git checkout "$1" && echo "[-] Checked out $1." || echo "[-] Checkout default branch"
+        # Hard fail: silently falling back to the default branch builds a
+        # kernel without the requested fixes, which is worse than no build.
+        git checkout "$1" && echo "[-] Checked out $1." || { echo "[-] ERROR: branch '$1' not found"; exit 1; }
     fi
     cd "$DRIVER_DIR"
     ln -sf "$(realpath --relative-to="$DRIVER_DIR" "$GKI_ROOT/KernelSU/kernel")" "kernelsu" && echo "[+] Symlink created."
