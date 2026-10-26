@@ -146,6 +146,12 @@ enum Commands {
     /// Always operates on a boot image; never selects init_boot or vendor_boot.
     BootPatchV2(BootPatchV2Args),
 
+    /// Extract or replace the kernel block without modifying the ramdisk.
+    BootKernel {
+        #[command(subcommand)]
+        command: crate::boot_patch::BootKernelCommand,
+    },
+
     /// Show boot information
     BootInfo {
         #[command(subcommand)]
@@ -555,6 +561,11 @@ enum Feature {
 #[derive(clap::Subcommand, Debug)]
 #[clap(name = "extension")]
 enum Extension {
+    /// Configure KernelSU version responses
+    VersionSpoof {
+        #[command(subcommand)]
+        command: VersionSpoof,
+    },
     /// Get extension value and support status
     Get {
         /// Extension ID or name (kpm, cpu_spoof, umount_paths, dynamic_manager)
@@ -586,6 +597,34 @@ enum Extension {
 
     /// Save current extension states to file
     Save,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum VersionSpoof {
+    /// Read current kernel overrides as JSON
+    Get,
+    /// Replace all overrides; omitted fields use build values
+    Set {
+        #[arg(long)]
+        version: Option<u32>,
+        #[arg(long)]
+        full: Option<String>,
+        #[arg(long)]
+        uapi: Option<u32>,
+        /// Confirm that custom version/UAPI values can break compatibility.
+        #[arg(long, default_value_t = false)]
+        acknowledge_compatibility: bool,
+    },
+    /// Restore build values and remove saved overrides
+    Reset,
+    /// Read the home-page version warning visibility setting
+    WarningGet,
+    /// Set whether the home-page version warning is hidden
+    WarningSet {
+        /// `true` hides the warning; `false` shows it
+        #[arg(long)]
+        hidden: bool,
+    },
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -1176,6 +1215,23 @@ pub fn run() -> Result<()> {
             Feature::Save => crate::feature::save_config(),
         },
         Commands::Extension { command } => match command {
+            Extension::VersionSpoof { command } => match command {
+                VersionSpoof::Get => crate::version_spoof::print_config(),
+                VersionSpoof::Set {
+                    version,
+                    full,
+                    uapi,
+                    acknowledge_compatibility,
+                } => crate::version_spoof::set(version, full, uapi, acknowledge_compatibility),
+                VersionSpoof::Reset => crate::version_spoof::reset(),
+                VersionSpoof::WarningGet => {
+                    println!("{}", crate::version_spoof::warning_hidden()?);
+                    Ok(())
+                }
+                VersionSpoof::WarningSet { hidden } => {
+                    crate::version_spoof::set_warning_hidden(hidden)
+                }
+            },
             Extension::Get { id, config } => {
                 if config {
                     crate::extension::get_extension_config_cli(&id)
@@ -1293,6 +1349,7 @@ pub fn run() -> Result<()> {
         },
         Commands::BootRestore(boot_restore) => crate::boot_patch::restore(boot_restore),
         Commands::BootPatchV2(patch) => crate::lkm_image::patch_boot(&patch),
+        Commands::BootKernel { command } => crate::boot_patch::boot_kernel(command),
         Commands::Resetprop { args } => {
             let mut full_args = vec!["resetprop".to_string()];
             full_args.extend(args);
