@@ -14,9 +14,9 @@
 #define SUKISU_KPM_SUPERCALL_MAGIC3 0x53554b494e544552UL
 /* x6=magic2, x7=magic3, x8=ABI version; x9..x30 reserved (zero).
  * Internal synthetic pt_regs only; the userspace extension ABI is unchanged.
- * ABI v2: must match the kpimg bundled with current SukiSU/KernelPatch.
+ * ABI v1: pudding 验证通过；K90PM 需 v2（见 DEPLOY-ABI 说明）
  */
-#define SUKISU_KPM_ABI_VERSION 2
+#define SUKISU_KPM_ABI_VERSION 1
 #define SUKISU_KPM_PROBE 0
 #define SUKISU_KPM_OUTPUT_MAX 4096
 
